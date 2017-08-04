@@ -87,7 +87,13 @@ func (sc *SystemConf) EnabledBackends() EnabledBackends {
 // enables certain features of OpenTSDB querying
 type OpenTSDBConf struct {
 	ResponseLimit int64
-	Host          string           // OpenTSDB relay and query destination: ny-devtsdb04:4242
+	// OpenTSDB relay and query destination: http://user:pass@ny-devtsdb04:4242
+	//user/pass are optional
+	URL           url.URL
+	Host          string
+	Username      string
+	Password      string
+	Scheme        string
 	Version       opentsdb.Version // If set to 2.2 , enable passthrough of wildcards and filters, and add support for groupby
 }
 
@@ -405,13 +411,28 @@ func (sc *SystemConf) GetRuleFilePath() string {
 }
 
 // SetTSDBHost sets the OpenTSDB host and used when Bosun is set to readonly mode
-func (sc *SystemConf) SetTSDBHost(tsdbHost string) {
-	sc.OpenTSDBConf.Host = tsdbHost
+func (sc *SystemConf) SetTSDBURL(tsdbURL url.URL) {
+	sc.OpenTSDBConf.URL = tsdbURL
 }
 
-// GetTSDBHost returns the configured TSDBHost
+func (sc *SystemConf) GetTSDBURL() url.URL {
+	return sc.OpenTSDBConf.URL
+}
+
 func (sc *SystemConf) GetTSDBHost() string {
 	return sc.OpenTSDBConf.Host
+}
+
+func (sc *SystemConf) GetTSDBUsername() string {
+	return sc.OpenTSDBConf.Username
+}
+
+func (sc *SystemConf) GetTSDBPassword() string {
+	return sc.OpenTSDBConf.Password
+}
+
+func (sc *SystemConf) GetTSDBScheme() string {
+	return sc.OpenTSDBConf.Scheme
 }
 
 // GetLogstashElasticHosts returns the Hosts to connect to for issuing logstash
@@ -437,7 +458,7 @@ func (sc *SystemConf) GetTSDBContext() opentsdb.Context {
 	if sc.OpenTSDBConf.Host == "" {
 		return nil
 	}
-	return opentsdb.NewLimitContext(sc.OpenTSDBConf.Host, sc.OpenTSDBConf.ResponseLimit, sc.OpenTSDBConf.Version)
+	return opentsdb.NewLimitContext(sc.GetTSDBURL(), sc.OpenTSDBConf.ResponseLimit, sc.OpenTSDBConf.Version)
 }
 
 // GetGraphiteContext returns a Graphite context which contains all the information needed

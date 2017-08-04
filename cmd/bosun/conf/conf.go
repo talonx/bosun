@@ -61,8 +61,12 @@ type SystemConfProvider interface {
 	ReloadEnabled() bool
 	GetCommandHookPath() string
 
-	SetTSDBHost(tsdbHost string)
+	SetTSDBURL(tsdbURL url.URL)
+	GetTSDBURL() url.URL
 	GetTSDBHost() string
+	GetTSDBUsername() string
+	GetTSDBPassword() string
+	GetTSDBScheme() string
 
 	GetLogstashElasticHosts() expr.LogstashElasticHosts
 	GetAnnotateElasticHosts() expr.ElasticHosts

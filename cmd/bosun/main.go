@@ -133,6 +133,7 @@ func main() {
 		Scheme: proto,
 		Host:   addrToSendTo,
 	}
+	//This can happen when only the port is provided
 	if strings.HasPrefix(selfAddress.Host, ":") {
 		selfAddress.Host = "localhost" + selfAddress.Host
 	}
@@ -167,17 +168,33 @@ func main() {
 		slog.Fatal(err)
 	}
 	if sysProvider.GetTSDBHost() != "" {
-		relay := web.Relay(sysProvider.GetTSDBHost())
+		tsdbUsername := sysProvider.GetTSDBUsername()
+		var userInfo *url.Userinfo
+		if tsdbUsername != "" {
+			tsdbPassword := sysProvider.GetTSDBPassword()
+			if tsdbPassword == "" {
+				userInfo = url.User(tsdbUsername)
+			} else {
+				userInfo = url.UserPassword(tsdbUsername, tsdbPassword)
+			}
+		}
+		tsdbScheme := sysProvider.GetTSDBScheme()
+		if tsdbScheme == "" {
+			tsdbScheme = "http"
+		}
+		tsdbURL := &url.URL{
+			Scheme: tsdbScheme,
+			Host:   sysProvider.GetTSDBHost(),
+			User: userInfo,
+		}
+		sysProvider.SetTSDBURL(*tsdbURL)
+		relay := web.Relay(sysProvider.GetTSDBURL())
 		collect.DirectHandler = relay
 		if err := collect.Init(selfAddress, "bosun"); err != nil {
 			slog.Fatal(err)
 		}
-		tsdbHost := &url.URL{
-			Scheme: "http",
-			Host:   sysProvider.GetTSDBHost(),
-		}
 		if *flagReadonly {
-			rp := util.NewSingleHostProxy(tsdbHost)
+			rp := util.NewSingleHostProxy(tsdbURL)
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/api/put" {
 					w.WriteHeader(204)
@@ -185,9 +202,7 @@ func main() {
 				}
 				rp.ServeHTTP(w, r)
 			}))
-			slog.Infoln("readonly relay at", ts.URL, "to", tsdbHost)
-			tsdbHost, _ = url.Parse(ts.URL)
-			sysProvider.SetTSDBHost(tsdbHost.Host)
+			slog.Infoln("readonly relay at", ts.URL, "to", tsdbURL.Host)
 		}
 	}
 	if systemConf.GetPing() {
@@ -253,7 +268,7 @@ func main() {
 	go func() {
 		slog.Fatal(web.Listen(sysProvider.GetHTTPListen(), sysProvider.GetHTTPSListen(),
 			sysProvider.GetTLSCertFile(), sysProvider.GetTLSKeyFile(), *flagDev,
-			sysProvider.GetTSDBHost(), reload, sysProvider.GetAuthConf(), startTime))
+			sysProvider.GetTSDBURL(), reload, sysProvider.GetAuthConf(), startTime))
 	}()
 	go func() {
 		if !*flagNoChecks {

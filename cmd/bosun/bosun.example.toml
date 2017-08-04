@@ -50,6 +50,10 @@ CommandHookPath = "/Users/kbrandt/src/hook/hook"
 	Version = 2.2
 	# ResponseLimit will make requests error if the response from opentsdb is larger than this setting in bytes. Default of 1MB
 	ResponseLimit = 25000000
+	# These are optional to handle secure URLs and basic auth
+  # Username = ""
+  # Password = ""
+  # Scheme = "http|https"
 
 # Configuration for to enable to Graphite Backend
 [GraphiteConf]

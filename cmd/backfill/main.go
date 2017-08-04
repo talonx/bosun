@@ -19,11 +19,14 @@ import (
 )
 
 var (
-	start     = flag.String("start", "2013/01/01", "Start date to backfill.")
-	end       = flag.String("end", "", "End date to backfill. Will go to now if not specified.")
-	ruleFlag  = flag.String("rule", "", "A denormalization rule. ex `os.cpu__host`")
-	tsdbHost  = flag.String("host", "", "OpenTSDB host")
-	batchSize = flag.Int("batch", 500, "batch size to send points to OpenTSDB")
+	start      = flag.String("start", "2013/01/01", "Start date to backfill.")
+	end        = flag.String("end", "", "End date to backfill. Will go to now if not specified.")
+	ruleFlag   = flag.String("rule", "", "A denormalization rule. ex `os.cpu__host`")
+	tsdbHost   = flag.String("host", "", "OpenTSDB host")
+	tsdbScheme = flag.String("host", "", "OpenTSDB protocol scheme (http|https)")
+	tsdbUser   = flag.String("user", "", "OpenTSDB user")
+	tsdbPass   = flag.String("pass", "", "OpenTSDB password")
+	batchSize  = flag.Int("batch", 500, "batch size to send points to OpenTSDB")
 )
 
 func main() {
@@ -31,6 +34,19 @@ func main() {
 	if *tsdbHost == "" {
 		flag.PrintDefaults()
 		log.Fatal("host must be supplied")
+	}
+	var userInfo *url.Userinfo
+	if *tsdbUser != "" {
+		if *tsdbPass == "" {
+			userInfo = url.User(*tsdbUser)
+		} else {
+			userInfo = url.UserPassword(*tsdbUser, *tsdbPass)
+		}
+	}
+	tsdbUrl := &url.URL{
+		Host: *tsdbHost,
+		Scheme: *tsdbScheme,
+		User: userInfo,
 	}
 	putUrl := (&url.URL{Scheme: "http", Host: *tsdbHost, Path: "api/put"}).String()
 
@@ -53,7 +69,7 @@ func main() {
 	}
 
 	query := &opentsdb.Query{Metric: metric, Aggregator: "avg"}
-	query.Tags, err = queryForAggregateTags(query)
+	query.Tags, err = queryForAggregateTags(*tsdbUrl, query)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -79,7 +95,7 @@ func main() {
 			}
 		}()
 		req := opentsdb.Request{Start: startTimeString, End: endTimeString, Queries: []*opentsdb.Query{query}}
-		resp, err := req.Query(*tsdbHost)
+		resp, err := req.Query(*tsdbUrl)
 		if err != nil {
 			return err
 		}
@@ -141,11 +157,11 @@ func main() {
 	}
 }
 
-func queryForAggregateTags(query *opentsdb.Query) (opentsdb.TagSet, error) {
+func queryForAggregateTags(tsdbURL url.URL, query *opentsdb.Query) (opentsdb.TagSet, error) {
 	req := opentsdb.Request{}
 	req.Queries = []*opentsdb.Query{query}
 	req.Start = "1h-ago"
-	resp, err := req.Query(*tsdbHost)
+	resp, err := req.Query(tsdbURL)
 	if err != nil {
 		return nil, err
 	}

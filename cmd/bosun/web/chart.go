@@ -131,12 +131,12 @@ func Graph(t miniprofiler.Timer, w http.ResponseWriter, r *http.Request) (interf
 	var tr opentsdb.ResponseSet
 	b, _ := json.MarshalIndent(oreq, "", "  ")
 	t.StepCustomTiming("tsdb", "query", string(b), func() {
-		h := schedule.SystemConf.GetTSDBHost()
-		if h == "" {
+		tsdbURL := schedule.SystemConf.GetTSDBURL()
+		if tsdbURL.Host == "" {
 			err = fmt.Errorf("tsdbHost not set")
 			return
 		}
-		tr, err = oreq.Query(h)
+		tr, err = oreq.Query(tsdbURL)
 	})
 	if err != nil {
 		return nil, err

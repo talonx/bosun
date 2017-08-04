@@ -76,7 +76,8 @@ func init() {
 		"HTTP response codes from the backend server for request relayed through Bosun.")
 }
 
-func Listen(httpAddr, httpsAddr, certFile, keyFile string, devMode bool, tsdbHost string, reloadFunc func() error, authConfig *conf.AuthConf, st time.Time) error {
+func Listen(httpAddr, httpsAddr, certFile, keyFile string, devMode bool, tsdbURL url.URL, reloadFunc func() error,
+	authConfig *conf.AuthConf, st time.Time) error {
 	startTime = st
 	if devMode {
 		slog.Infoln("using local web assets")
@@ -125,9 +126,9 @@ func Listen(httpAddr, httpsAddr, certFile, keyFile string, devMode bool, tsdbHos
 		POST = http.MethodPost
 	)
 
-	if tsdbHost != "" {
+	if &tsdbURL != nil {
 		handleFunc("/api/index", IndexTSDB, canPutData).Name("tsdb_index")
-		handle("/api/put", Relay(tsdbHost), canPutData).Name("tsdb_put")
+		handle("/api/put", Relay(tsdbURL), canPutData).Name("tsdb_put")
 	}
 	router.PathPrefix("/auth/").Handler(auth.LoginHandler())
 	handleFunc("/api/", APIRedirect, fullyOpen).Name("api_redir")
@@ -207,7 +208,7 @@ func Listen(httpAddr, httpsAddr, certFile, keyFile string, devMode bool, tsdbHos
 	//MUST BE LAST!
 	router.PathPrefix("/").Handler(baseChain.Then(auth.Wrap(JSON(Index), canViewDash))).Name("index")
 
-	slog.Infoln("tsdb host:", tsdbHost)
+	slog.Infoln("tsdb host:", tsdbURL.Host)
 	errChan := make(chan error, 1)
 	if httpAddr != "" {
 		go func() {
@@ -271,11 +272,8 @@ func (rp *relayProxy) ServeHTTP(responseWriter http.ResponseWriter, r *http.Requ
 	collect.Add("relay.response", tags, 1)
 }
 
-func Relay(dest string) http.Handler {
-	return &relayProxy{ReverseProxy: util.NewSingleHostProxy(&url.URL{
-		Scheme: "http",
-		Host:   dest,
-	})}
+func Relay(dest url.URL) http.Handler {
+	return &relayProxy{ReverseProxy: util.NewSingleHostProxy(&dest)}
 }
 
 func indexTSDB(r *http.Request, body []byte) {

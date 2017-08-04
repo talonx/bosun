@@ -106,7 +106,10 @@ func sendBatch(batch []*opentsdb.DataPoint) {
 	now := time.Now()
 	resp, err := SendDataPoints(batch, tsdbURL)
 	if err == nil {
+		slog.Info("Called SDP, err is nil")
 		defer resp.Body.Close()
+	} else {
+		slog.Info("Called SDP, err is not nil")
 	}
 	d := time.Since(now).Nanoseconds() / 1e6
 	Sample("collect.post.duration", Tags, float64(d))
@@ -114,10 +117,13 @@ func sendBatch(batch []*opentsdb.DataPoint) {
 	Add("collect.post.count", Tags, 1)
 	// Some problem with connecting to the server; retry later.
 	if err != nil || resp.StatusCode != http.StatusNoContent {
+		slog.Info("Either nil or statsnocontent")
 		if err != nil {
+			slog.Info("Error nil")
 			Add("collect.post.error", Tags, 1)
 			slog.Error(err)
 		} else if resp.StatusCode != http.StatusNoContent {
+			slog.Info("Status code is not no content " + string(resp.StatusCode))
 			Add("collect.post.bad_status", Tags, 1)
 			slog.Errorln(resp.Status)
 			body, err := ioutil.ReadAll(resp.Body)
@@ -162,10 +168,16 @@ func SendDataPoints(dps []*opentsdb.DataPoint, tsdb string) (*http.Response, err
 	if err != nil {
 		return nil, err
 	}
+	slog.Info("Q url " + tsdb)
 	if DirectHandler != nil {
+		slog.Info("Q Direct handler is set " + req.URL.String())
 		rec := httptest.NewRecorder()
+		//TODO this proxy does not set the Auth header.
 		DirectHandler.ServeHTTP(rec, req)
+		slog.Info("Q Direct Handler called " + req.URL.String())
 		return rec.Result(), nil
+	} else {
+		slog.Info("Q Direct handler is null")
 	}
 	client := DefaultClient
 
@@ -180,6 +192,7 @@ func SendDataPoints(dps []*opentsdb.DataPoint, tsdb string) (*http.Response, err
 		}
 		return resp, err
 	}
+	slog.Info("Calling client.DO")
 	resp, err := client.Do(req)
 	return resp, err
 }

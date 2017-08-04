@@ -882,8 +882,8 @@ func (r *Request) SetTime(t time.Time) error {
 
 // Query performs a v2 OpenTSDB request to the given host. host should be of the
 // form hostname:port. Uses DefaultClient. Can return a RequestError.
-func (r *Request) Query(host string) (ResponseSet, error) {
-	resp, err := r.QueryResponse(host, nil)
+func (r *Request) Query(url url.URL) (ResponseSet, error) {
+	resp, err := r.QueryResponse(url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -902,11 +902,12 @@ var DefaultClient = &http.Client{
 
 // QueryResponse performs a v2 OpenTSDB request to the given host. host should
 // be of the form hostname:port. A nil client uses DefaultClient.
-func (r *Request) QueryResponse(host string, client *http.Client) (*http.Response, error) {
+func (r *Request) QueryResponse(tsdburl url.URL, client *http.Client) (*http.Response, error) {
 	u := url.URL{
-		Scheme: "http",
-		Host:   host,
+		Scheme: tsdburl.Scheme,
+		Host:   tsdburl.Host,
 		Path:   "/api/query",
+		User: tsdburl.User,
 	}
 	b, err := json.Marshal(&r)
 	if err != nil {
@@ -956,11 +957,11 @@ type Context interface {
 }
 
 // Host is a simple OpenTSDB Context with no additional features.
-type Host string
+type Host url.URL
 
 // Query performs the request to the OpenTSDB server.
 func (h Host) Query(r *Request) (ResponseSet, error) {
-	return r.Query(string(h))
+	return r.Query(url.URL(h))
 }
 
 // OpenTSDB 2.1 version struct
@@ -997,7 +998,7 @@ func (v Version) FilterSupport() bool {
 
 // LimitContext is a context that enables limiting response size and filtering tags
 type LimitContext struct {
-	Host string
+	Host url.URL
 	// Limit limits response size in bytes
 	Limit int64
 	// FilterTags removes tagks from results if that tagk was not in the request
@@ -1008,7 +1009,7 @@ type LimitContext struct {
 
 // NewLimitContext returns a new context for the given host with response sizes limited
 // to limit bytes.
-func NewLimitContext(host string, limit int64, version Version) *LimitContext {
+func NewLimitContext(host url.URL, limit int64, version Version) *LimitContext {
 	return &LimitContext{
 		Host:        host,
 		Limit:       limit,
